@@ -1,4 +1,4 @@
-# TODO: find optimal network structure, creat 8 channel output, add colision detection
+# TODO: find optimal network structure, add colision detection
 
 import torch
 import torch.nn as nn
@@ -22,7 +22,7 @@ class Aigent:
         self.epsilon = 0.1 #randomness
         self.gamma = 0.9 #discount rate
         self.memory = deque(maxlen = MAX_MEMORY)
-        self.model = Linear_QNet(4, 64, 4)
+        self.model = Linear_QNet(4, 64, 8)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
 
@@ -51,17 +51,39 @@ class Aigent:
 
     def get_action(self, state):
         q_values = self.model(state)
+        #print(f"q_values: {q_values}")
         if random.random() < self.epsilon:
-            out = [0, 0, 0, 0]
-            out[random.randint(0, 3)] = 1
-            print("random action")
+            act = [0, 0, 0, 0, 0, 0, 0, 0] # left, right, up, down, leftup, rightup, leftdown, rightdown
+            act[random.randint(0, q_values.size(dim=0) - 1)] = 1
+            out = self.handleAction(act)
+            print(f"random action {out}")
             return torch.tensor(out)  # Random action
         else:
-            out = [0, 0, 0, 0]
-            out[torch.argmax(q_values).item()] = 1
+            act = q_values.size(dim=0) * [0]
+            act[torch.argmax(q_values).item()] = 1
+            out = self.handleAction(act)
             print(f"action: {out}")
             return torch.tensor(out)
 
+    def handleAction(self, action):
+        out = [0, 0, 0, 0]
+        if action[4] == 1 or action[5] == 1:
+            out[2] = 1 # up
+        if action[6] == 1 or action[7] == 1:
+            out[3] = 1 # down
+        if action[4] == 1 or action[6] == 1:
+            out[0] = 1 # left
+        if action[5] == 1 or action[7] == 1:
+            out[1] = 1 # right
+        if action[0] == 1:
+            out[0] = 1
+        if action[1] == 1:
+            out[1] = 1
+        if action[2] == 1:
+            out[2] = 1
+        if action[3] == 1:
+            out[3] = 1
+        return torch.tensor(out)
 
 def train():
     plot_scores = []
@@ -79,10 +101,9 @@ def train():
         final_move = agent.get_action(state_old)
 
         #perform move + step
-
         #print(f"Final move: {final_move}")
-        reward, score = game.playStep(final_move.tolist())
-        done = game.getFrame() > 700
+        reward, score, done = game.playStep(final_move.tolist())
+        done = True if game.getFrame() > 1000 else done
 
         state_new = agent.get_state(game)
 
@@ -92,7 +113,11 @@ def train():
         #remember
         agent.remember(state_old, final_move, reward, state_new, done)
 
-        if game.getFrame() > 700:
+        if game.getFrame() > 1000 or done: 
+            if score > record:
+                record = score
+                agent.model.save()
+                print('Game', agent.n_games, 'Score', score, 'Record:', record)
             #train long memory, plot results
             game.reset()
             agent.n_games += 1

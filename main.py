@@ -201,10 +201,12 @@ class Game:
         self.draw()
         self.frame += 1
         dist = self.getDistance(self.agent, self.follower)
-        reward = (dist - 50) - (WALL_DISLIKE*(self.agent.get_x() - self.width/2))**2 - (WALL_DISLIKE*(self.agent.get_y() - self.height/2))**2
+        antiwall = (WALL_DISLIKE*(self.agent.get_x() - self.width/2))**2 - (WALL_DISLIKE*(self.agent.get_y() - self.height/2))**2
+        reward = (dist - 50) - antiwall
+        reward = reward / 100
         self.score += reward
         #print(reward)
-        return reward, self.score
+        return reward, self.score, self.getDistance(self.agent, self.follower) < 50
     
     def getState(self):
         return [self.agent.get_x(), self.agent.get_y(), self.follower.get_x(), self.follower.get_y()]
